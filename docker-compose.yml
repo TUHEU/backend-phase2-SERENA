@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+  user-service:
+    build:
+      context: ./user-service
+    environment:
+      - SECRET_KEY=yaounde-secret-dev-key-change-me
+    volumes:
+      - ./user-service/data:/app/data
+    expose:
+      - "5011"
+
+  itinerary-service:
+    build:
+      context: ./itinerary-service
+    environment:
+      - SECRET_KEY=yaounde-secret-dev-key-change-me
+      - RECOMMENDATION_SERVICE_URL=http://recommendation-service:5013
+    volumes:
+      - ./itinerary-service/data:/app/data
+    expose:
+      - "5012"
+    depends_on:
+      - recommendation-service
+
+  recommendation-service:
+    build:
+      context: ./recommendation-service
+    environment:
+      - SECRET_KEY=yaounde-secret-dev-key-change-me
+    volumes:
+      - ./recommendation-service/data:/app/data
+    expose:
+      - "5013"
+
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: backend-phase2/api-gateway/Dockerfile
+    environment:
+      - USER_SERVICE_URL=http://user-service:5011
+      - ITINERARY_SERVICE_URL=http://itinerary-service:5012
+      - RECOMMENDATION_SERVICE_URL=http://recommendation-service:5013
+      - FRONTEND_DIR=/frontend
+    ports:
+      - "5000:5000"
+    depends_on:
+      - user-service
+      - itinerary-service
+      - recommendation-service

@@ -1,0 +1,8 @@
+FROM python:3.12-slim
+WORKDIR /app
+COPY backend-phase2/api-gateway/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY backend-phase2/api-gateway/ .
+COPY frontend/ /frontend
+EXPOSE 5000
+CMD ["gunicorn", "-b", "0.0.0.0:5000", "app:app"]
