@@ -53,7 +53,7 @@ def token_required(f):
             return jsonify({"error": "Session expirée, reconnectez-vous"}), 401
         except jwt.InvalidTokenError:
             return jsonify({"error": "Token invalide"}), 401
-        request.user_id = payload["sub"]
+        request.user_id = int(payload["sub"])
         return f(*args, **kwargs)
     return wrapper
 
@@ -109,6 +109,13 @@ def create_itinerary():
     itineraries.append(itinerary)
     save("itineraries", itineraries)
     return jsonify(itinerary), 201
+
+
+@app.route("/itineraries/all", methods=["GET"])
+def list_all_itineraries_internal():
+    """Internal endpoint used by community-service for leaderboard/stats
+    aggregation. Not routed through the gateway."""
+    return jsonify(load("itineraries"))
 
 
 @app.route("/itineraries/<int:item_id>", methods=["DELETE"])

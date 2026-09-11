@@ -42,7 +42,7 @@ def next_id(items):
 
 def make_token(user):
     payload = {
-        "sub": user["id"],
+        "sub": str(user["id"]),
         "name": user["name"],
         "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7),
     }
@@ -61,7 +61,7 @@ def token_required(f):
             return jsonify({"error": "Session expirée, reconnectez-vous"}), 401
         except jwt.InvalidTokenError:
             return jsonify({"error": "Token invalide"}), 401
-        request.user_id = payload["sub"]
+        request.user_id = int(payload["sub"])
         return f(*args, **kwargs)
     return wrapper
 
@@ -121,7 +121,57 @@ def me():
     user = next((u for u in users if u["id"] == request.user_id), None)
     if not user:
         return jsonify({"error": "Utilisateur introuvable"}), 404
-    return jsonify({"id": user["id"], "name": user["name"], "email": user["email"]})
+    return jsonify({
+        "id": user["id"],
+        "name": user["name"],
+        "email": user["email"],
+        "created_at": user.get("created_at"),
+    })
+
+
+@app.route("/me", methods=["PUT"])
+@token_required
+def update_me():
+    body = request.get_json(force=True) or {}
+    name = (body.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "Le nom ne peut pas être vide"}), 400
+
+    users = load("users")
+    user = next((u for u in users if u["id"] == request.user_id), None)
+    if not user:
+        return jsonify({"error": "Utilisateur introuvable"}), 404
+
+    user["name"] = name
+    save("users", users)
+
+    token = make_token(user)
+    return jsonify({"token": token, "user": {"id": user["id"], "name": user["name"], "email": user["email"]}})
+
+
+@app.route("/me/password", methods=["POST"])
+@token_required
+def change_password():
+    body = request.get_json(force=True) or {}
+    current_password = body.get("current_password") or ""
+    new_password = body.get("new_password") or ""
+
+    if not current_password or not new_password:
+        return jsonify({"error": "Mot de passe actuel et nouveau mot de passe requis"}), 400
+    if len(new_password) < 6:
+        return jsonify({"error": "Le nouveau mot de passe doit contenir au moins 6 caractères"}), 400
+
+    users = load("users")
+    user = next((u for u in users if u["id"] == request.user_id), None)
+    if not user:
+        return jsonify({"error": "Utilisateur introuvable"}), 404
+
+    if not check_password_hash(user["password_hash"], current_password):
+        return jsonify({"error": "Mot de passe actuel incorrect"}), 401
+
+    user["password_hash"] = generate_password_hash(new_password)
+    save("users", users)
+    return jsonify({"updated": True})
 
 
 @app.route("/users/<int:user_id>", methods=["GET"])
@@ -132,6 +182,17 @@ def get_user_internal(user_id):
     if not user:
         return jsonify({"error": "Utilisateur introuvable"}), 404
     return jsonify({"id": user["id"], "name": user["name"]})
+
+
+@app.route("/users", methods=["GET"])
+def list_users_internal():
+    """Internal endpoint used by community-service to compute leaderboard/stats.
+    Deliberately excludes email and password_hash."""
+    users = load("users")
+    return jsonify([
+        {"id": u["id"], "name": u["name"], "created_at": u.get("created_at")}
+        for u in users
+    ])
 
 
 if __name__ == "__main__":

@@ -51,7 +51,7 @@ def token_required(f):
             return jsonify({"error": "Session expirée, reconnectez-vous"}), 401
         except jwt.InvalidTokenError:
             return jsonify({"error": "Token invalide"}), 401
-        request.user_id = payload["sub"]
+        request.user_id = int(payload["sub"])
         request.user_name = payload["name"]
         return f(*args, **kwargs)
     return wrapper
@@ -104,6 +104,13 @@ def recommendations():
     destinations = load("destinations")
     top = sorted(destinations, key=lambda d: d["popularity"], reverse=True)[:6]
     return jsonify(top)
+
+
+@app.route("/reviews/all", methods=["GET"])
+def list_all_reviews_internal():
+    """Internal endpoint used by community-service for leaderboard/stats
+    aggregation. Not routed through the gateway."""
+    return jsonify(load("reviews"))
 
 
 @app.route("/destinations/<int:dest_id>/reviews", methods=["GET"])

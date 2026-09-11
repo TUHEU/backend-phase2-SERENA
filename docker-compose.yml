@@ -5,17 +5,18 @@ services:
     build:
       context: ./user-service
     environment:
-      - SECRET_KEY=yaounde-secret-dev-key-change-me
+      - SECRET_KEY=${SECRET_KEY}
     volumes:
       - ./user-service/data:/app/data
     expose:
       - "5011"
+    restart: unless-stopped
 
   itinerary-service:
     build:
       context: ./itinerary-service
     environment:
-      - SECRET_KEY=yaounde-secret-dev-key-change-me
+      - SECRET_KEY=${SECRET_KEY}
       - RECOMMENDATION_SERVICE_URL=http://recommendation-service:5013
     volumes:
       - ./itinerary-service/data:/app/data
@@ -23,29 +24,52 @@ services:
       - "5012"
     depends_on:
       - recommendation-service
+    restart: unless-stopped
 
   recommendation-service:
     build:
       context: ./recommendation-service
     environment:
-      - SECRET_KEY=yaounde-secret-dev-key-change-me
+      - SECRET_KEY=${SECRET_KEY}
     volumes:
       - ./recommendation-service/data:/app/data
     expose:
       - "5013"
+    restart: unless-stopped
 
-  api-gateway:
+  community-service:
     build:
-      context: ..
-      dockerfile: backend-phase2/api-gateway/Dockerfile
+      context: ./community-service
     environment:
+      - SECRET_KEY=${SECRET_KEY}
       - USER_SERVICE_URL=http://user-service:5011
       - ITINERARY_SERVICE_URL=http://itinerary-service:5012
       - RECOMMENDATION_SERVICE_URL=http://recommendation-service:5013
-      - FRONTEND_DIR=/frontend
-    ports:
-      - "5000:5000"
+    volumes:
+      - ./community-service/data:/app/data
+    expose:
+      - "5014"
     depends_on:
       - user-service
       - itinerary-service
       - recommendation-service
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+    environment:
+      - USER_SERVICE_URL=http://user-service:5011
+      - ITINERARY_SERVICE_URL=http://itinerary-service:5012
+      - RECOMMENDATION_SERVICE_URL=http://recommendation-service:5013
+      - COMMUNITY_SERVICE_URL=http://community-service:5014
+    ports:
+      # Loopback-only — Nginx (running outside Docker) reverse-proxies
+      # /api/ from its public port through to this one.
+      - "127.0.0.1:8095:5000"
+    depends_on:
+      - user-service
+      - itinerary-service
+      - recommendation-service
+      - community-service
+    restart: unless-stopped
